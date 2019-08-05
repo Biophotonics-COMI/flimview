@@ -4,6 +4,7 @@ import sdtfile as sdt
 from scipy import signal
 from scipy.optimize import curve_fit
 from scipy.stats import chisquare
+import scipy.special
 
 import matplotlib.pyplot as plt
 import pathlib
@@ -81,8 +82,29 @@ def getKernel(bin=1, kernel="mean", sigma=None):
         _kernel = _kernel/np.sum(_kernel)
     if kernel == "mean":
         _kernel = np.ones((N, N)) / (N ** 2)
+    if kernel == "airy":
+        k = bin
+        x = np.linspace(-10,10,1001)
+        probs = []
+        for z in x:
+            if z == 0:
+                probs.append(1.0)
+            else:
+                probs.append(4 * (scipy.special.j1(z) / z)**2)
+        if sigma is not None:
+            s = sigma
+        else:
+            s = 3.8317
+        xt = x/3.8317*s
+        zt = np.arange(-k, k+1)
+        probt = np.interp(zt, xt, probs)
+        _kernel = np.outer(probt, probt)
+        _kernel /= np.sum(_kernel)
     if kernel == "gauss":
-        s = (bin+1)/3.
+        if sigma is None:
+            s = (bin+1)/3.
+        else:
+            s = sigma
         k = bin
         probs = [
             np.exp(-z * z / (2 * s * s)) / np.sqrt(2 * np.pi * s * s)
