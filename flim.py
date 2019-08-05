@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-from sdtfile import SdtFile
 import sdtfile as sdt
 from scipy import signal
 from scipy.optimize import curve_fit
@@ -11,17 +10,41 @@ import pathlib
 import glob
 import os
 from matplotlib import cm
-from PIL import Image  # pillow
+import inspect
+#from PIL import Image  # pillow
 import random as rn
 from numpy.lib.stride_tricks import as_strided
 from matplotlib.colors import LogNorm
 from matplotlib import cm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
+def getModelVars(function):
+    params = inspect.signature(function).parameters
+    vd= {}
+    vd['parameters'] = []
+    vd['name'] = function.__name__
+    for i,pps in enumerate(params.items()):
+        if i ==0:
+            continue
+        else:
+            pname, pr = pps
+        if pr.default == inspect._empty:
+            vd['parameters'].append(pname)
+    return vd
 
-def model(x, a1, a2, tau1, tau2):
-    return a1 * np.exp(-x / tau1) + a2 * np.exp(-x / tau2)
 
+def printModel(model, pfit, pcov, chi2, oneliner=True):
+    vd = getModelVars(model)
+    line = '{} (chi2 = {:.3f}): '.format(vd["name"], chi2)
+    if not oneliner:
+        line += '\n'
+    for i in range(len(pfit)):
+        if oneliner:
+            line += '{} = {:.3f} \u00B1 {:.3f}, '.format(vd['parameters'][i], pfit[i], np.sqrt(np.diag(pcov))[i])
+        else:
+            line += '{: <5} = {:.3f} \u00B1 {:.3f}\n'.format(vd['parameters'][i], pfit[i], np.sqrt(np.diag(pcov))[i])
+    return line[:line.rfind(',')]
+        
 
 def meanDecay(FCube):
     means = []
@@ -32,35 +55,34 @@ def meanDecay(FCube):
     return times, means
 
 
-def fitPixel(x, y, initial_p=None, norm=False, threshold=None, model=None):
+def fitPixel(x, y, initial_p=None, norm=False, threshold=None, model=None, bounds=(0, np.inf)):
     imax = np.argmax(y)
     dx = x[1] - x[0]
     # xf = x[imax:]
     yf = np.array(y[imax:])
     xf = np.arange(len(yf)) * dx
+    if norm:
+        yf = yf / np.max(yf)
     if threshold is not None:
         wabove = np.where(yf > threshold)[0]
         xf = xf[wabove]
         yf = yf[wabove]
-    if norm:
-        yf = yf / np.max(yf)
-    pfit, pcov = curve_fit(model, xf, yf, initial_p)
+    pfit, pcov = curve_fit(model, xf, yf, initial_p, bounds=bounds)
     chi2, pp = chisquare(yf, model(xf, *pfit), len(pfit))
     return xf, yf, pfit, pcov, chi2
 
 
-def binCube(FCube, channel=None, bin=1, kernel="mean", sigma=1.0):
-    if channel is None:
-        idx = np.arange(FCube.data.shape[2])
-        outarray = np.empty((FCube.data.shape))
-    else:
-        idx = [channel]
-        outarray = np.empty((FCube.xpix, FCube.ypix, 1))
+def getKernel(bin=1, kernel="mean", sigma=None):
     N = 2 * bin + 1
+    if kernel == "linear":
+        prob= list(np.arange(bin+1)+1)
+        probs = prob+prob[::-1][1:]
+        _kernel = np.outer(probs, probs)
+        _kernel = _kernel/np.sum(_kernel)
     if kernel == "mean":
         _kernel = np.ones((N, N)) / (N ** 2)
     if kernel == "gauss":
-        s = sigma
+        s = (bin+1)/3.
         k = bin
         probs = [
             np.exp(-z * z / (2 * s * s)) / np.sqrt(2 * np.pi * s * s)
@@ -68,7 +90,16 @@ def binCube(FCube, channel=None, bin=1, kernel="mean", sigma=1.0):
         ]
         _kernel = np.outer(probs, probs)
         _kernel /= np.sum(_kernel)
+    return _kernel
 
+def binCube(FCube, channel=None, bin=1, kernel="mean", sigma=None):
+    if channel is None:
+        idx = np.arange(FCube.data.shape[2])
+        outarray = np.empty((FCube.data.shape))
+    else:
+        idx = [channel]
+        outarray = np.empty((FCube.xpix, FCube.ypix, 1))
+    _kernel = getKernel(bin, kernel, sigma)
     for j in range(len(idx)):
         outarray[:, :, j] = signal.convolve2d(
             FCube.data[:, :, idx[j]], _kernel, mode="same"
@@ -81,26 +112,7 @@ def binCube(FCube, channel=None, bin=1, kernel="mean", sigma=1.0):
     return FlimCube(outarray, header, binned=True)
 
 
-def read_sdtfile(sdtfile, channel=0, xpix=256, ypix=256, tpix=256):
-    sdt = SdtFile(sdtfile)
-    if np.shape(sdt.data)[0] == 0:
-        print(f"There is an error with this file: {sdtfile}")
-    sdt_meta = pd.DataFrame.from_records(sdt.measure_info[0])
-    sdt_meta = sdt_meta.append(
-        pd.DataFrame.from_records(sdt.measure_info[1]), ignore_index=True
-    )
-    sdt_meta.append(pd.DataFrame.from_records(sdt.measure_info[2]), ignore_index=True)
-    sdt_meta = sdt_meta.append(
-        pd.DataFrame.from_records(sdt.measure_info[3]), ignore_index=True
-    )
-    header = {}
-    header["flimview"] = {}
-    header["flimview"]["sdt_info"] = sdt.info
-    header["flimview"]["xpix"] = xpix
-    header["flimview"]["ypix"] = ypix
-    header["flimview"]["tpix"] = tpix
-    header["flimview"]["tresolution"] = sdt.times[0][1] / 1e-12
-    return np.reshape(sdt.data[channel], (xpix, ypix, tpix)), header
+
 
 
 class FlimCube(object):
@@ -115,6 +127,7 @@ class FlimCube(object):
         self.masked = masked
         self.mask = None
         self.intensity = np.sum(self.data, axis=2)
+        self.peak = np.max(self.data, axis=2)
 
     def show_header(self):
         """Display information about the file"""
@@ -138,16 +151,29 @@ class FlimCube(object):
                 print("{}: {}".format(k, v))
 
     def mask_intensity(self, minval, mask=None):
-        self.unmask_intensity()
+        self.unmask()
         if mask is None:
             self.intensity = np.ma.masked_where(self.intensity < minval, self.intensity)
         else:
             self.intensity = np.ma.masked_array(self.intensity, mask=mask)
         self.masked = True
         self.mask = self.intensity.mask
+        self.peak = np.ma.masked_array(self.peak, mask=self.mask)
 
-    def unmask_intensity(self):
+        
+    def mask_peak(self, minval, mask=None):
+        self.unmask()
+        if mask is None:
+            self.peak = np.ma.masked_where(self.peak < minval, self.peak)
+        else:
+            self.peak = np.ma.masked_array(self.peak, mask=mask)
+        self.masked = True
+        self.mask = self.peak.mask
+        self.intensity = np.ma.masked_array(self.intensity, mask=self.mask)
+
+    def unmask(self):
         self.intensity = np.sum(self.data, axis=2)
+        self.peak = np.max(self.data, axis=2)
         self.masked = False
         self.mask = None
 

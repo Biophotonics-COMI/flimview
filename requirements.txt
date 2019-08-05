@@ -1,5 +1,8 @@
+jupyterlab
 scipy
 numpy
 matplotlib
-stdfile
+sdtfile
 pandas
+tqdm
+seaborn

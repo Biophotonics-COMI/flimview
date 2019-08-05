@@ -1,6 +1,30 @@
 import struct
 import time
 import numpy as np
+from sdtfile import SdtFile
+import pandas as pd
+
+
+def read_sdt_file(sdtfile, channel=0, xpix=256, ypix=256, tpix=256):
+    sdt = SdtFile(sdtfile)
+    if np.shape(sdt.data)[0] == 0:
+        print(f"There is an error with this file: {sdtfile}")
+    sdt_meta = pd.DataFrame.from_records(sdt.measure_info[0])
+    sdt_meta = sdt_meta.append(
+        pd.DataFrame.from_records(sdt.measure_info[1]), ignore_index=True
+    )
+    sdt_meta.append(pd.DataFrame.from_records(sdt.measure_info[2]), ignore_index=True)
+    sdt_meta = sdt_meta.append(
+        pd.DataFrame.from_records(sdt.measure_info[3]), ignore_index=True
+    )
+    header = {}
+    header["flimview"] = {}
+    header["flimview"]["sdt_info"] = sdt.info
+    header["flimview"]["xpix"] = xpix
+    header["flimview"]["ypix"] = ypix
+    header["flimview"]["tpix"] = tpix
+    header["flimview"]["tresolution"] = sdt.times[0][1] / 1e-12
+    return np.reshape(sdt.data[channel], (xpix, ypix, tpix)), header
 
 
 def read_ptu_header(infile):
@@ -113,13 +137,16 @@ def read_ptu_records(params):
     inputfile.seek(header["Header_End_Bytes"] + shift, 0)
     buffer = inputfile.read(4 * read_records)
     records = np.frombuffer(buffer, dtype="uint32", count=read_records)
-    sync = np.bitwise_and(records, 2 ** 10 - 1)  # Lowest 10 bits
-    tcspc = np.bitwise_and(
-        np.right_shift(records, 10), 2 ** 15 - 1
-    )  # Next 15 bits, dtime can be obtained from header
-    chan = np.bitwise_and(np.right_shift(records, 25), 2 ** 6 - 1)  # Next 6 bits
-    special = np.bitwise_and(records, 2 ** 31) > 0  # Last bit for special markers
-    index = (special * 1) * ((chan == 63) * 1)  # Find overflow locations
+    # Lowest 10 bits
+    sync = np.bitwise_and(records, 2 ** 10 - 1)
+    # Next 15 bits, dtime can be obtained from header
+    tcspc = np.bitwise_and(np.right_shift(records, 10), 2 ** 15 - 1)
+    # Next 6 bits
+    chan = np.bitwise_and(np.right_shift(records, 25), 2 ** 6 - 1)
+    # Last bit for special markers
+    special = np.bitwise_and(records, 2 ** 31) > 0
+    # Find overflow locations
+    index = (special * 1) * ((chan == 63) * 1)
     special = (special * 1) * chan
     sync = sync.astype(np.uint64)
     tcspc = tcspc.astype(np.uint16)
