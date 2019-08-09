@@ -12,40 +12,46 @@ import glob
 import os
 from matplotlib import cm
 import inspect
-#from PIL import Image  # pillow
+
+# from PIL import Image  # pillow
 import random as rn
 from numpy.lib.stride_tricks import as_strided
 from matplotlib.colors import LogNorm
 from matplotlib import cm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
+
 def getModelVars(function):
     params = inspect.signature(function).parameters
-    vd= {}
-    vd['parameters'] = []
-    vd['name'] = function.__name__
-    for i,pps in enumerate(params.items()):
-        if i ==0:
+    vd = {}
+    vd["parameters"] = []
+    vd["name"] = function.__name__
+    for i, pps in enumerate(params.items()):
+        if i == 0:
             continue
         else:
             pname, pr = pps
         if pr.default == inspect._empty:
-            vd['parameters'].append(pname)
+            vd["parameters"].append(pname)
     return vd
 
 
 def printModel(model, pfit, pcov, chi2, oneliner=True):
     vd = getModelVars(model)
-    line = '{} (chi2 = {:.3f}): '.format(vd["name"], chi2)
+    line = "{} (chi2 = {:.3f}): ".format(vd["name"], chi2)
     if not oneliner:
-        line += '\n'
+        line += "\n"
     for i in range(len(pfit)):
         if oneliner:
-            line += '{} = {:.3f} \u00B1 {:.3f}, '.format(vd['parameters'][i], pfit[i], np.sqrt(np.diag(pcov))[i])
+            line += "{} = {:.3f} \u00B1 {:.3f}, ".format(
+                vd["parameters"][i], pfit[i], np.sqrt(np.diag(pcov))[i]
+            )
         else:
-            line += '{: <5} = {:.3f} \u00B1 {:.3f}\n'.format(vd['parameters'][i], pfit[i], np.sqrt(np.diag(pcov))[i])
-    return line[:line.rfind(',')]
-        
+            line += "{: <5} = {:.3f} \u00B1 {:.3f}\n".format(
+                vd["parameters"][i], pfit[i], np.sqrt(np.diag(pcov))[i]
+            )
+    return line[: line.rfind(",")]
+
 
 def meanDecay(FCube):
     means = []
@@ -56,7 +62,9 @@ def meanDecay(FCube):
     return times, means
 
 
-def fitPixel(x, y, initial_p=None, norm=False, threshold=None, model=None, bounds=(0, np.inf)):
+def fitPixel(
+    x, y, initial_p=None, norm=False, threshold=None, model=None, bounds=(0, np.inf)
+):
     imax = np.argmax(y)
     dx = x[1] - x[0]
     # xf = x[imax:]
@@ -76,33 +84,33 @@ def fitPixel(x, y, initial_p=None, norm=False, threshold=None, model=None, bound
 def getKernel(bin=1, kernel="mean", sigma=None):
     N = 2 * bin + 1
     if kernel == "linear":
-        prob= list(np.arange(bin+1)+1)
-        probs = prob+prob[::-1][1:]
+        prob = list(np.arange(bin + 1) + 1)
+        probs = prob + prob[::-1][1:]
         _kernel = np.outer(probs, probs)
-        _kernel = _kernel/np.sum(_kernel)
+        _kernel = _kernel / np.sum(_kernel)
     if kernel == "mean":
         _kernel = np.ones((N, N)) / (N ** 2)
     if kernel == "airy":
         k = bin
-        x = np.linspace(-10,10,1001)
+        x = np.linspace(-10, 10, 1001)
         probs = []
         for z in x:
             if z == 0:
                 probs.append(1.0)
             else:
-                probs.append(4 * (scipy.special.j1(z) / z)**2)
+                probs.append(4 * (scipy.special.j1(z) / z) ** 2)
         if sigma is not None:
             s = sigma
         else:
             s = 3.8317
-        xt = x/3.8317*s
-        zt = np.arange(-k, k+1)
+        xt = x / 3.8317 * s
+        zt = np.arange(-k, k + 1)
         probt = np.interp(zt, xt, probs)
         _kernel = np.outer(probt, probt)
         _kernel /= np.sum(_kernel)
     if kernel == "gauss":
         if sigma is None:
-            s = (bin+1)/3.
+            s = (bin + 1) / 3.0
         else:
             s = sigma
         k = bin
@@ -113,6 +121,7 @@ def getKernel(bin=1, kernel="mean", sigma=None):
         _kernel = np.outer(probs, probs)
         _kernel /= np.sum(_kernel)
     return _kernel
+
 
 def binCube(FCube, channel=None, bin=1, kernel="mean", sigma=None):
     if channel is None:
@@ -132,9 +141,6 @@ def binCube(FCube, channel=None, bin=1, kernel="mean", sigma=None):
     header["flimview"]["binned"]["kernel"] = kernel
     header["flimview"]["binned"]["sigma"] = sigma
     return FlimCube(outarray, header, binned=True)
-
-
-
 
 
 class FlimCube(object):
@@ -182,7 +188,6 @@ class FlimCube(object):
         self.mask = self.intensity.mask
         self.peak = np.ma.masked_array(self.peak, mask=self.mask)
 
-        
     def mask_peak(self, minval, mask=None):
         self.unmask()
         if mask is None:
