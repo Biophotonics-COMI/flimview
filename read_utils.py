@@ -28,7 +28,8 @@ def read_sdt_file(sdtfile, channel=0, xpix=256, ypix=256, tpix=256):
 
 
 def read_ptu_header(infile):
-    """ Read header from a ptu file and returns a dictionary with all the information
+    """ Read header from a ptu file and returns a dictionary with all
+    the information
 
     Parameters
     ----------
@@ -174,7 +175,7 @@ def clean_ptu_oflow(header, sync, tcspc, channel, special, index, wrap=1024):
     header["flimview"]["xpix"] = header["ImgHdr_PixX"]
     header["flimview"]["ypix"] = header["ImgHdr_PixY"]
     header["flimview"]["tpix"] = np.max(tcspc) - np.min(tcspc) + 1
-    header["flimview"]["tresolution"] = header["MeasDesc_Resolution"]
+    header["flimview"]["tresolution"] = header["MeasDesc_Resolution"] / 1e-12
     header["flimview"]["ptu"] = {}
     line_start = sync[np.where(special == LineStartMarker)]
     line_stop = sync[np.where(special == LineStopMarker)]
@@ -197,12 +198,15 @@ def read_ptu_frame(
     nframes=1,
     frame_shift=0,
     frames_per_view=20,
+    res_factor=1
 ):
     out = []
     xpix = header["flimview"]["ypix"]
     ypix = header["flimview"]["xpix"]
-    tpix = header["flimview"]["tpix"]
-    tresolution = header["flimview"]["tresolution"]
+    tpix = int(np.ceil(header["flimview"]["tpix"]/res_factor))
+    tresolution = header["flimview"]["tresolution"]*res_factor
+    header["flimview"]["tpix"] = tpix
+    header["flimview"]["tresolution"] = tresolution
     im1 = np.zeros((xpix + 1, ypix, tpix))
     i = start_frames[view * frames_per_view + frame_shift] + 1
     line = (view * frames_per_view + frame_shift) * (xpix + 1)
@@ -235,7 +239,7 @@ def read_ptu_frame(
                 np.floor((((currentSync - syncStart) / syncPulsesPerLine) * xpix))
             )
             # ch = int(np.log2(channel[i]))  # 0,1,2
-            tc = tcspc[i]  # // 2
+            tc = tcspc[i] // res_factor
             try:
                 im1[currentLine][currentPixel][tc] += 1
             except:
@@ -247,4 +251,4 @@ def read_ptu_frame(
             frame += 1
         if frame == nframes:
             break
-    return im1[1:,][:][:]  # remove extra column
+    return im1[1:,][:][:], header  # remove extra column

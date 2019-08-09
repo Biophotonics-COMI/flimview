@@ -5,19 +5,11 @@ from scipy import signal
 from scipy.optimize import curve_fit
 from scipy.stats import chisquare
 import scipy.special
-
+from tqdm import tqdm
 import matplotlib.pyplot as plt
-import pathlib
-import glob
 import os
 from matplotlib import cm
 import inspect
-
-# from PIL import Image  # pillow
-import random as rn
-from numpy.lib.stride_tricks import as_strided
-from matplotlib.colors import LogNorm
-from matplotlib import cm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
@@ -58,37 +50,82 @@ def meanDecay(FCube):
     for i in range(FCube.timesteps):
         im = np.ma.masked_array(FCube.data[:, :, i], mask=FCube.mask)
         means.append(np.mean(im))
-    times = np.arange(FCube.timesteps) * FCube.tresolution
+    times = FCube.t
     return times, means
 
 
-def fitPixel(
-    x, y, initial_p=None, norm=False, threshold=None, model=None, bounds=(0, np.inf)
-):
-    imax = np.argmax(y)
-    dx = x[1] - x[0]
-    # xf = x[imax:]
-    yf = np.array(y[imax:])
-    xf = np.arange(len(yf)) * dx
+def cleanCurve(x, y, norm=False, threshold=0.01, xshift=None):
+    x = np.array(x)
+    y = np.array(y)
+    ymax = np.max(y)
     if norm:
-        yf = yf / np.max(yf)
+        y = y / np.max(y)
     if threshold is not None:
-        wabove = np.where(yf > threshold)[0]
-        xf = xf[wabove]
-        yf = yf[wabove]
+        wabove = np.where(y > threshold)[0]
+        x = x[wabove]
+        y = y[wabove]
+    imax = np.argmax(y)
+    y1 = y[imax:]
+    x1 = x[imax:]
+    if xshift is None:
+        xshift = np.min(x1)
+    x1 -= xshift
+    return x1, y1, ymax, xshift
+
+
+def fitPixel(
+    x, y, model, initial_p=None, norm=False, threshold=None, xshift=None, bounds=None
+):
+    if bounds is None:
+        bounds = (-np.inf, np.inf)
+    xf, yf, yf_max, xf_shift = cleanCurve(
+        x, y, norm=norm, threshold=threshold, xshift=xshift
+    )
     pfit, pcov = curve_fit(model, xf, yf, initial_p, bounds=bounds)
     chi2, pp = chisquare(yf, model(xf, *pfit), len(pfit))
     return xf, yf, pfit, pcov, chi2
 
 
-def getKernel(bin=1, kernel="mean", sigma=None):
+def fitCube(
+    FCube, model, guessp=None, bounds=None, norm=False, threshold=None, xshift=None
+):
+    PP = np.zeros((FCube.xpix, FCube.ypix, 2, len(guessp) + 2)) - 1
+    failed = np.zeros((FCube.xpix, FCube.ypix))
+    for i in tqdm(range(FCube.xpix)):
+        for j in range(FCube.ypix):
+            if FCube.mask[i, j]:
+                continue
+            try:
+                y = FCube.data[i, j]
+                x = FCube.t
+                xf, yf, pfit_i, pcov_i, chi2_i = fitPixel(
+                    x,
+                    y,
+                    model,
+                    initial_p=guessp,
+                    bounds=bounds,
+                    norm=norm,
+                    threshold=threshold,
+                    xshift=xshift,
+                )
+                for k in range(len(guessp)):
+                    PP[i, j, 0, k] = pfit_i[k]
+                    PP[i, j, 1, k] = np.sqrt(np.diag(pcov_i)[k])
+                PP[i, j, 0, -1] = chi2_i
+                PP[i, j, 0, -2] = np.mean(yf - model(xf, *pfit_i))
+            except:
+                failed[i, j] = 1
+    return FittedFlim(FCube, model, PP)
+
+
+def getKernel(bin=1, kernel="flat", sigma=None):
     N = 2 * bin + 1
     if kernel == "linear":
         prob = list(np.arange(bin + 1) + 1)
         probs = prob + prob[::-1][1:]
         _kernel = np.outer(probs, probs)
         _kernel = _kernel / np.sum(_kernel)
-    if kernel == "mean":
+    if kernel == "flat":
         _kernel = np.ones((N, N)) / (N ** 2)
     if kernel == "airy":
         k = bin
@@ -123,7 +160,7 @@ def getKernel(bin=1, kernel="mean", sigma=None):
     return _kernel
 
 
-def binCube(FCube, channel=None, bin=1, kernel="mean", sigma=None):
+def binCube(FCube, channel=None, bin=1, kernel="flat", sigma=None):
     if channel is None:
         idx = np.arange(FCube.data.shape[2])
         outarray = np.empty((FCube.data.shape))
@@ -132,15 +169,36 @@ def binCube(FCube, channel=None, bin=1, kernel="mean", sigma=None):
         outarray = np.empty((FCube.xpix, FCube.ypix, 1))
     _kernel = getKernel(bin, kernel, sigma)
     for j in range(len(idx)):
-        outarray[:, :, j] = signal.convolve2d(
-            FCube.data[:, :, idx[j]], _kernel, mode="same"
-        )
+        temp = signal.convolve2d(FCube.data[:, :, idx[j]], _kernel, mode="same")
+        if np.sum(FCube.data[:, :, idx[j]]) > 0:
+            temp = temp / np.sum(temp) * np.sum(FCube.data[:, :, idx[j]])
+        outarray[:, :, j] = temp
     header = FCube.header
     header["flimview"]["binned"] = {}
     header["flimview"]["binned"]["bin"] = bin
     header["flimview"]["binned"]["kernel"] = kernel
     header["flimview"]["binned"]["sigma"] = sigma
     return FlimCube(outarray, header, binned=True)
+
+
+class FittedFlim(object):
+    def __init__(self, Fcube, model, results):
+        self.Fcube = Fcube
+        self.model = model
+        self.mask = Fcube.mask
+        vd = getModelVars(self.model)
+        self.parameters = vd["parameters"]
+        self.model_name = vd["name"]
+        for i, name in enumerate(vd["parameters"]):
+            setattr(self, name, np.ma.masked_array(results[:, :, 0, i], mask=self.mask))
+            setattr(
+                self,
+                name + "_err",
+                np.ma.masked_array(results[:, :, 0, i], mask=self.mask),
+            )
+        self.chi2 = np.ma.masked_array(results[:, :, 0, -1], mask=self.mask)
+        self.residuals = np.ma.masked_array(results[:, :, 0, -2], mask=self.mask)
+        del results
 
 
 class FlimCube(object):
@@ -154,8 +212,9 @@ class FlimCube(object):
         self.binned = binned
         self.masked = masked
         self.mask = None
-        self.intensity = np.sum(self.data, axis=2)
-        self.peak = np.max(self.data, axis=2)
+        self.intensity = np.sum(self.data, axis=2)*1.0
+        self.peak = np.max(self.data, axis=2)*1.0
+        self.t = np.arange(self.timesteps) * self.tresolution / 1000.0
 
     def show_header(self):
         """Display information about the file"""
@@ -199,8 +258,8 @@ class FlimCube(object):
         self.intensity = np.ma.masked_array(self.intensity, mask=self.mask)
 
     def unmask(self):
-        self.intensity = np.sum(self.data, axis=2)
-        self.peak = np.max(self.data, axis=2)
+        self.intensity = np.sum(self.data, axis=2)*1.0
+        self.peak = np.max(self.data, axis=2)*1.0
         self.masked = False
         self.mask = None
 
