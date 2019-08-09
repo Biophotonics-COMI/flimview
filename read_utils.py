@@ -3,6 +3,7 @@ import time
 import numpy as np
 from sdtfile import SdtFile
 import pandas as pd
+import copy
 
 
 def read_sdt_file(sdtfile, channel=0, xpix=256, ypix=256, tpix=256):
@@ -205,8 +206,9 @@ def read_ptu_frame(
     ypix = header["flimview"]["xpix"]
     tpix = int(np.ceil(header["flimview"]["tpix"]/res_factor))
     tresolution = header["flimview"]["tresolution"]*res_factor
-    header["flimview"]["tpix"] = tpix
-    header["flimview"]["tresolution"] = tresolution
+    headerf = copy.deepcopy(header)
+    headerf["flimview"]["tpix"] = tpix
+    headerf["flimview"]["tresolution"] = tresolution
     im1 = np.zeros((xpix + 1, ypix, tpix))
     i = start_frames[view * frames_per_view + frame_shift] + 1
     line = (view * frames_per_view + frame_shift) * (xpix + 1)
@@ -251,4 +253,4 @@ def read_ptu_frame(
             frame += 1
         if frame == nframes:
             break
-    return im1[1:,][:][:], header  # remove extra column
+    return im1[1:,][:][:], headerf  # remove extra column
