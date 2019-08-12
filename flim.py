@@ -115,7 +115,9 @@ def fitCube(
                 PP[i, j, 0, -2] = np.mean(yf - model(xf, *pfit_i))
             except:
                 failed[i, j] = 1
-    return FittedFlim(FCube, model, PP)
+    FFit = FlimFit(FCube, model)
+    FFit.load_results(PP)
+    return FFit
 
 
 def getKernel(bin=1, kernel="flat", sigma=None):
@@ -181,15 +183,18 @@ def binCube(FCube, channel=None, bin=1, kernel="flat", sigma=None):
     return FlimCube(outarray, header, binned=True)
 
 
-class FittedFlim(object):
-    def __init__(self, Fcube, model, results):
+class FlimFit(object):
+    def __init__(self, Fcube, model):
         self.Fcube = Fcube
         self.model = model
         self.mask = Fcube.mask
+        self.masked = Fcube.masked
         vd = getModelVars(self.model)
         self.parameters = vd["parameters"]
         self.model_name = vd["name"]
-        for i, name in enumerate(vd["parameters"]):
+
+    def load_results(self, results):
+        for i, name in enumerate(self.parameters):
             setattr(self, name, np.ma.masked_array(results[:, :, 0, i], mask=self.mask))
             setattr(
                 self,
@@ -199,6 +204,12 @@ class FittedFlim(object):
         self.chi2 = np.ma.masked_array(results[:, :, 0, -1], mask=self.mask)
         self.residuals = np.ma.masked_array(results[:, :, 0, -2], mask=self.mask)
         del results
+
+    def load_single(self, name, data):
+        setattr(self, name, np.ma.masked_array(data, mask=self.mask))
+        del data
+
+
 
 
 class FlimCube(object):

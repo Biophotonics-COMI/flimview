@@ -4,6 +4,10 @@ import numpy as np
 from sdtfile import SdtFile
 import pandas as pd
 import copy
+import os
+import h5py
+import json
+from .flim import FlimCube, FlimFit
 
 
 def read_sdt_file(sdtfile, channel=0, xpix=256, ypix=256, tpix=256):
@@ -21,6 +25,8 @@ def read_sdt_file(sdtfile, channel=0, xpix=256, ypix=256, tpix=256):
     header = {}
     header["flimview"] = {}
     header["flimview"]["sdt_info"] = sdt.info
+    header["flimview"]["filename"] = os.path.basename(sdtfile)
+    header["flimview"]["pathname"] = os.path.dirname(sdtfile)
     header["flimview"]["xpix"] = xpix
     header["flimview"]["ypix"] = ypix
     header["flimview"]["tpix"] = tpix
@@ -254,3 +260,133 @@ def read_ptu_frame(
         if frame == nframes:
             break
     return im1[1:,][:][:], headerf  # remove extra column
+
+
+def saveCube(FCube, filename=None):
+    file_name, file_extension = os.path.splitext(FCube.header['flimview']['filename'])
+    if filename is None:
+        h5file = os.path.join(FCube.header['flimview']['pathname'], FCube.header['flimview']['filename'].replace(file_extension, '.h5'))
+    else:
+        h5file = filename
+    f = h5py.File(h5file, "a")
+    try:
+        grp = f.create_group(file_name)
+    except ValueError:
+        grp = f[file_name]
+    if not FCube.binned:
+        try:
+            subg = grp.create_group('raw')
+        except:
+            subg = grp['raw']
+    else:
+        try:
+            subg = grp.create_group('binned')
+        except:
+            subg = grp['binned']
+    subg.attrs['header'] = json.dumps(FCube.header)
+    subg.attrs['binned'] = FCube.binned
+    subg.attrs['masked'] = FCube.masked
+    try:
+        dset = subg.create_dataset('data', shape=FCube.data.shape, dtype=FCube.data.dtype, compression="gzip")
+    except:
+        dset = subg['data']
+    dset[...] = FCube.data
+    if FCube.masked:
+        try:
+            mset = subg.create_dataset('mask', shape = FCube.mask.shape, dtype=FCube.mask.dtype, compression="gzip")
+        except:
+            mset = subg['mask']
+        mset[...] = FCube.mask
+    f.close()
+
+
+def loadCube(filename, kind, group=None):
+    f = h5py.File(filename, 'r')
+    file_name, file_extension = os.path.splitext(os.path.basename(filename))
+    if group is None:
+        grp = file_name
+    else:
+        grp = group
+    g = f[grp]
+    try:
+        sg = g[kind]
+    except KeyError:
+        print('Error: {} does not exists'.format(kind))
+        return None
+    header = json.loads(sg.attrs['header'])
+    masked = sg.attrs['masked']
+    C = FlimCube(sg['data'], header, sg.attrs['binned'])
+    if masked:
+        C.mask_peak(0, sg['mask'])
+    return C
+
+def saveFit(FFit, filename=None):
+    file_name, file_extension = os.path.splitext(FFit.Fcube.header['flimview']['filename'])
+    if filename is None:
+        h5file = os.path.join(FFit.Fcube.header['flimview']['pathname'], FFit.Fcube.header['flimview']['filename'].replace(file_extension, '.h5'))
+    else:
+        h5file = filename
+    f = h5py.File(h5file, "a")
+    print(file_name)
+    try:
+        grp = f.create_group(file_name)
+    except ValueError:
+        grp = f[file_name]
+    try:
+        fit = grp.create_group('fit')
+    except:
+        fit = grp['fit']
+    fit.attrs['model'] = FFit.model.__name__
+    fit.attrs['parameters'] = FFit.parameters
+    masked = FFit.Fcube.masked
+    fit.attrs['parameters'] = masked
+    if masked:
+        try:
+            mset = fit.create_dataset('mask', shape=FFit.mask.shape, dtype=FFit.mask.dtype, compression="gzip")
+        except:
+            mset = fit['mask']
+        mset[...] = FFit.mask
+    for k in FFit.parameters:
+        kerr = '{}_err'.format(k)
+        try:
+            data =  getattr(FFit, k)
+            kset = fit.create_dataset(k, shape=data.shape, dtype=data.dtype, compression="gzip")
+        except:
+            kset = fit[k]
+        kset[...] = data
+        try:
+            data =  getattr(FFit, kerr)
+            kset = fit.create_dataset(kerr, shape=data.shape, dtype=data.dtype, compression="gzip")
+        except:
+            kset = fit[kerr]
+        kset[...] = data
+    try:
+        mset = fit.create_dataset('chi2', shape=FFit.chi2.shape, dtype=FFit.chi2.dtype, compression="gzip")
+    except:
+        mset = fit['chi2']
+    mset[...] = FFit.chi2
+    try:
+        mset = fit.create_dataset('residuals', shape=FFit.residuals.shape, dtype=FFit.residuals.dtype, compression="gzip")
+    except:
+        mset = fit['residuals']
+    mset[...] = FFit.residuals
+    f.close()
+
+
+def loadFit(filename, group=None):
+    file_name, file_extension = os.path.splitext(os.path.basename(filename))
+    if group is None:
+        grp = file_name
+    else:
+        grp = group
+    C = loadCube(filename, 'binned', grp)
+    f = h5py.File(filename, 'r')
+    g = f[grp]
+    try:
+        sg = g['fit']
+    except KeyError:
+        print('Error: {} does not exists'.format('fit'))
+        return None
+    model = getattr(models, sg.attrs['model'])
+    F = FlimFit(C, model)
+    return F
