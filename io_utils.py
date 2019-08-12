@@ -267,7 +267,7 @@ def read_ptu_frame(
     return im1[1:,][:][:], headerf  # remove extra column
 
 
-def saveCube(FCube, filename=None, subgroup=None):
+def saveCube(FCube, filename=None, group=None, subgroup=None):
     file_name, file_extension = os.path.splitext(FCube.header["flimview"]["filename"])
     if filename is None:
         h5file = os.path.join(
@@ -277,17 +277,19 @@ def saveCube(FCube, filename=None, subgroup=None):
     else:
         h5file = filename
     f = h5py.File(h5file, "a")
+    if group is None:
+        grp0 = file_name
+    else:
+        grp0 = group
+    try:
+        grp = f.create_group(grp0)
+    except ValueError:
+        grp = f[file_name]
     if subgroup is not None:
         try:
-            sf = f.create_group(subgroup)
+            grp = grp.create_group(subgroup)
         except:
-            sf = f[subgroup]
-    else:
-        sf = f
-    try:
-        grp = sf.create_group(file_name)
-    except ValueError:
-        grp = sf[file_name]
+            grp = grp[subgroup]
     if not FCube.binned:
         try:
             subg = grp.create_group("raw")
@@ -322,7 +324,7 @@ def saveCube(FCube, filename=None, subgroup=None):
     f.close()
 
 
-def loadCube(filename, kind, group=None):
+def loadCube(filename, kind, group=None, subgroup=None):
     f = h5py.File(filename, "r")
     file_name, file_extension = os.path.splitext(os.path.basename(filename))
     if group is None:
@@ -330,6 +332,11 @@ def loadCube(filename, kind, group=None):
     else:
         grp = group
     g = f[grp]
+    if subgroup is not None:
+        try:
+            g = g.create_group(subgroup)
+        except:
+            g = g[subgroup]
     try:
         sg = g[kind]
     except KeyError:
