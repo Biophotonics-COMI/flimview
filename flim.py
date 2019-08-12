@@ -210,8 +210,6 @@ class FlimFit(object):
         del data
 
 
-
-
 class FlimCube(object):
     def __init__(self, data, header, binned=False, masked=False):
         self.xpix = header["flimview"]["xpix"]
@@ -223,8 +221,8 @@ class FlimCube(object):
         self.binned = binned
         self.masked = masked
         self.mask = None
-        self.intensity = np.sum(self.data, axis=2)*1.0
-        self.peak = np.max(self.data, axis=2)*1.0
+        self.intensity = np.sum(self.data, axis=2) * 1.0
+        self.peak = np.max(self.data, axis=2) * 1.0
         self.t = np.arange(self.timesteps) * self.tresolution / 1000.0
 
     def show_header(self):
@@ -269,8 +267,8 @@ class FlimCube(object):
         self.intensity = np.ma.masked_array(self.intensity, mask=self.mask)
 
     def unmask(self):
-        self.intensity = np.sum(self.data, axis=2)*1.0
-        self.peak = np.max(self.data, axis=2)*1.0
+        self.intensity = np.sum(self.data, axis=2) * 1.0
+        self.peak = np.max(self.data, axis=2) * 1.0
         self.masked = False
         self.mask = None
 
