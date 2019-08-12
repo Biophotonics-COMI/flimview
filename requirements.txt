@@ -6,3 +6,5 @@ sdtfile
 pandas
 tqdm
 seaborn
+json
+j5py
