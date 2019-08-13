@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 import sdtfile as sdt
 from scipy import signal
 from scipy.optimize import curve_fit
@@ -282,19 +281,6 @@ class FLIM1(object):
         self.timesteps = 256
         self.xpix = 256
         self.ypix = 256
-        if np.shape(self.sdt.data)[0] == 0:
-            print("There is an error with this file: {}".format(sdtfile))
-        else:
-            self.sdt_meta = pd.DataFrame.from_records(self.sdt.measure_info[0])
-            self.sdt_meta = self.sdt_meta.append(
-                pd.DataFrame.from_records(self.sdt.measure_info[1]), ignore_index=True
-            )
-            self.sdt_meta = self.sdt_meta.append(
-                pd.DataFrame.from_records(self.sdt.measure_info[2]), ignore_index=True
-            )
-            self.sdt_meta = self.sdt_meta.append(
-                pd.DataFrame.from_records(self.sdt.measure_info[3]), ignore_index=True
-            )
 
     @classmethod
     def from_type(cls, diagnose, layer):
