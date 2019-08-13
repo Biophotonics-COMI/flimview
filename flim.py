@@ -237,8 +237,8 @@ class FlimCube(object):
             else:
                 print("{}: {}".format(k, v))
         print("---------------------------")
-        print(f"Data Shape: {np.shape(self.data)}")
-        print(f"Time resolution [ps]: {self.tresolution}")
+        print("Data Shape: {}".format(np.shape(self.data)))
+        print("Time resolution [ps]: {}".format(self.tresolution))
         print("---------------------------")
         if self.binned:
             print("Binned Information")
@@ -283,7 +283,7 @@ class FLIM1(object):
         self.xpix = 256
         self.ypix = 256
         if np.shape(self.sdt.data)[0] == 0:
-            print(f"There is an error with this file: {sdtfile}")
+            print("There is an error with this file: {}".format(sdtfile))
         else:
             self.sdt_meta = pd.DataFrame.from_records(self.sdt.measure_info[0])
             self.sdt_meta = self.sdt_meta.append(
@@ -306,11 +306,6 @@ class FLIM1(object):
         )
         return cls(tiff, sdt)
 
-    def show_info(self):
-        """Display information about the file"""
-        print(self.sdt.info)
-        print(f"Data Shape: {np.shape(self.sdt.data)}")
-        print(f"Time resolution [ps]: {self.sdt.times[0][1]/1e-12}")
 
     def show_tif(self):
         plt.figure(figsize=(8, 8))

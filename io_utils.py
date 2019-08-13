@@ -14,7 +14,7 @@ from . import models
 def read_sdt_file(sdtfile, channel=0, xpix=256, ypix=256, tpix=256):
     sdt = SdtFile(sdtfile)
     if np.shape(sdt.data)[0] == 0:
-        print(f"There is an error with this file: {sdtfile}")
+        print("There is an error with this file: {}".format(sdtfile))
     sdt_meta = pd.DataFrame.from_records(sdt.measure_info[0])
     sdt_meta = sdt_meta.append(
         pd.DataFrame.from_records(sdt.measure_info[1]), ignore_index=True
@@ -260,7 +260,7 @@ def read_ptu_frame(
         i += 1  # next entry
         if sp == 4:  # next frame
             currentLine = 0
-            print(f"frame {frame+frame_shift}, view {view} done")
+            print("frame {}, view {} done".format(frame+frame_shift, view))
             frame += 1
         if frame == nframes:
             break
