@@ -284,7 +284,7 @@ def saveCube(FCube, filename=None, group=None, subgroup=None):
     try:
         grp = f.create_group(grp0)
     except ValueError:
-        grp = f[file_name]
+        grp = f[grp0]
     if subgroup is not None:
         try:
             grp = grp.create_group(subgroup)
@@ -333,10 +333,7 @@ def loadCube(filename, kind, group=None, subgroup=None):
         grp = group
     g = f[grp]
     if subgroup is not None:
-        try:
-            g = g.create_group(subgroup)
-        except:
-            g = g[subgroup]
+        g = g[subgroup]
     try:
         sg = g[kind]
     except KeyError:
@@ -344,14 +341,14 @@ def loadCube(filename, kind, group=None, subgroup=None):
         return None
     header = json.loads(sg.attrs["header"])
     masked = sg.attrs["masked"]
-    C = FlimCube(sg["data"], header, sg.attrs["binned"])
+    C = FlimCube(np.array(sg["data"]), header, sg.attrs["binned"])
     if masked:
-        C.mask_peak(0, sg["mask"])
+        C.mask_peak(0, np.array(sg["mask"]))
     f.close()
     return C
 
 
-def saveFit(FFit, filename=None):
+def saveFit(FFit, filename=None, group=None, subgroup=None):
     file_name, file_extension = os.path.splitext(
         FFit.Fcube.header["flimview"]["filename"]
     )
@@ -363,10 +360,19 @@ def saveFit(FFit, filename=None):
     else:
         h5file = filename
     f = h5py.File(h5file, "a")
+    if group is None:
+        grp0 = file_name
+    else:
+        grp0 = group
     try:
-        grp = f.create_group(file_name)
+        grp = f.create_group(grp0)
     except ValueError:
-        grp = f[file_name]
+        grp = f[grp0]
+    if subgroup is not None:
+        try:
+            grp = grp.create_group(subgroup)
+        except:
+            grp = grp[subgroup]
     try:
         fit = grp.create_group("fit")
     except:
@@ -421,15 +427,17 @@ def saveFit(FFit, filename=None):
     f.close()
 
 
-def loadFit(filename, group=None):
+def loadFit(filename, group=None, subgroup=None):
     file_name, file_extension = os.path.splitext(os.path.basename(filename))
     if group is None:
         grp = file_name
     else:
         grp = group
-    C = loadCube(filename, "binned", grp)
+    C = loadCube(filename, "binned", group=grp, subgroup=subgroup)
     f = h5py.File(filename, "r")
     g = f[grp]
+    if subgroup is not None:
+        g = g[subgroup]
     try:
         sg = g["fit"]
     except KeyError:
