@@ -27,7 +27,8 @@ def getModelVars(function):
     return vd
 
 
-def printModel(model, pfit, pcov, chi2, oneliner=True):
+def printModel(model, pfit, pcov, chi2, oneliner=True, cov_matrix=True):
+    
     vd = getModelVars(model)
     line = "{} (chi2 = {:.3f}): ".format(vd["name"], chi2)
     if not oneliner:
@@ -198,7 +199,7 @@ class FlimFit(object):
             setattr(
                 self,
                 name + "_err",
-                np.ma.masked_array(results[:, :, 0, i], mask=self.mask),
+                np.ma.masked_array(results[:, :, 1, i], mask=self.mask),
             )
         self.chi2 = np.ma.masked_array(results[:, :, 0, -1], mask=self.mask)
         self.residuals = np.ma.masked_array(results[:, :, 0, -2], mask=self.mask)
@@ -282,26 +283,7 @@ class FLIM1(object):
         self.xpix = 256
         self.ypix = 256
 
-    @classmethod
-    def from_type(cls, diagnose, layer):
-        tiff = "Psoriasis/test_dataset/c1_{0}/60_{0}_760nm_t{1:03}-c1.tif".format(
-            diagnose, layer
-        )
-        sdt = "Psoriasis/test_dataset/FLIM_{0}/60_{0}_760nm_c{1:02}.sdt".format(
-            diagnose, layer
-        )
-        return cls(tiff, sdt)
 
-
-    def show_tif(self):
-        plt.figure(figsize=(8, 8))
-        ax = plt.gca()
-        ims = ax.imshow(self.tif, cmap=cm.inferno)
-        ax.set_title(os.path.basename(self.tiffile))
-        divider = make_axes_locatable(ax)
-        cax = divider.append_axes("right", size="5%", pad=0.05)
-        plt.colorbar(ims, cax=cax)
-        plt.show()
 
     def extract2D(self, channel=0, t=0, summed=False):
         """Extract a 2D snapshot for a given channel for a given timestep, it can also returned a integrated
@@ -407,22 +389,7 @@ class FLIM1(object):
             _kernel /= np.sum(_kernel)
         return signal.convolve2d(imgarray, _kernel, mode="same")
 
-    def extractAllBin(self, channel=0, bin=1, kernel="mean", sigma=1.0, summed=False):
-        """Extracts binned images for all timesteps"""
-        self.bin = bin
-        self.binned_data = np.zeros((self.xpix, self.ypix, self.timesteps))
-        for i in range(self.timesteps):
-            self.binned_data[:, :, i] = self.extractBin(
-                channel=channel, t=i, bin=bin, kernel=kernel, sigma=sigma, summed=summed
-            )
-
-    def extractMeanDecay(self, channel=0):
-        means = []
-        for i in range(self.timesteps):
-            imgarray = self.extract2D(channel, i, summed=False)
-            means.append(np.mean(imgarray))
-        self.mean_decay = np.array(means)
-        return self.mean_decay
+   
 
     def plot_mean_decay(self, channel=0):
         if not hasattr(self, "mean_decay"):

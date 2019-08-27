@@ -378,9 +378,9 @@ def saveFit(FFit, filename=None, group=None, subgroup=None):
     except:
         fit = grp["fit"]
     fit.attrs["model"] = FFit.model.__name__
-    fit.attrs["parameters"] = FFit.parameters
+    fit.attrs["parameters"] = json.dumps(FFit.parameters)
     masked = FFit.Fcube.masked
-    fit.attrs["parameters"] = masked
+    fit.attrs["masked"] = masked
     if masked:
         try:
             mset = fit.create_dataset(
@@ -454,3 +454,29 @@ def loadFit(filename, group=None, subgroup=None):
             F.load_single(k, sg[k])
     f.close()
     return F
+
+
+def descend_obj(obj,sep='----'):
+    """
+    Iterate through groups in a HDF5 file and prints the groups and datasets names and datasets attributes
+    """
+    if type(obj) in [h5py.Group,h5py.File]:
+        for key in obj.keys():
+            if isinstance(obj[key], h5py.Dataset):
+                print('{}> {}: {}'.format(sep, key, obj[key].shape))
+            else:
+                print('{}> {}: {}'.format(sep, key, obj[key].name))
+            descend_obj(obj[key],sep=sep+'----')
+    elif type(obj) == h5py.Dataset:
+        for key in obj.attrs.keys():
+            print('{}----+{}: {}'.format(sep, key, obj.attrs[key]))
+
+def viewH5(path,group='/'):
+    """
+    print HDF5 file metadata
+
+    group: specific group, defaults to the root group
+    """
+    print('File: {}'.format(path))
+    with h5py.File(path,'r') as f:
+         descend_obj(f[group])
