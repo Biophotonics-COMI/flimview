@@ -13,6 +13,20 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
 def getModelVars(function):
+    """Get the variables for a given model/function. Returns a list of ordered parameters and the
+    function's name.
+
+    Parameters
+    ----------
+    function : function
+        Model defined functions
+
+    Returns
+    -------
+    vd : dict
+        Dictionary containing the name and the input variables for the model.
+
+    """
     params = inspect.signature(function).parameters
     vd = {}
     vd["parameters"] = []
@@ -27,8 +41,28 @@ def getModelVars(function):
     return vd
 
 
-def printModel(model, pfit, pcov, chi2, oneliner=True, cov_matrix=True):
-    
+def printModel(model, pfit, pcov, chi2, oneliner=True):
+    """Prints string of resulting models.
+
+    Parameters
+    ----------
+    model : Object
+        Model defined functions
+    pfit :
+        Resulting array with parameters
+    pcov :
+        Resulting covariance matrix from the fit
+    chi2 : float
+        Resulting chi2
+    oneliner : bool, optional
+        Print everyting in one line (default is True)
+
+    Returns
+    -------
+    line : str
+        String with the resulting models
+    """
+
     vd = getModelVars(model)
     line = "{} (chi2 = {:.3f}): ".format(vd["name"], chi2)
     if not oneliner:
@@ -46,6 +80,21 @@ def printModel(model, pfit, pcov, chi2, oneliner=True, cov_matrix=True):
 
 
 def meanDecay(FCube):
+    """Computes the mean decay across all of the pixels. Used to get initial estimates
+    of parameters
+
+    Parameters
+    ----------
+    FCube : flim.flimCube
+        Instance of a flimCube object
+
+    Returns
+    -------
+    times: float
+        Array with timesteps
+    means : float
+        Array with mean values across all of the pixel for a given timestep
+    """
     means = []
     for i in range(FCube.timesteps):
         im = np.ma.masked_array(FCube.data[:, :, i], mask=FCube.mask)
@@ -55,6 +104,33 @@ def meanDecay(FCube):
 
 
 def cleanCurve(x, y, norm=False, threshold=0.01, xshift=None):
+    """Cleans the decay dta before fitting.
+
+    Parameters
+    ----------
+    x : float
+        Array with time values
+    y : float
+        Array with decay values
+    norm : bool
+        If True, it normalizes the data to its maximum (default is True)
+    threshold : float
+        If True, only data above threshold is considered for the fitting (default is 0.01)
+    xshift : float
+        Shifts the time axis by `xshift` to fixed the initial decay timestep (default is None)
+        If None, data is shifted to start at maximum point at t=0
+
+    Returns
+    -------
+    x1 : float
+        Cleaned x
+    y1 : float
+        Cleaned y
+    ymax : float
+        Maximum value for y in case data is normalized
+    xshift : float
+        Time shift applied to the data
+    """
     x = np.array(x)
     y = np.array(y)
     ymax = np.max(y)
@@ -73,9 +149,42 @@ def cleanCurve(x, y, norm=False, threshold=0.01, xshift=None):
     return x1, y1, ymax, xshift
 
 
-def fitPixel(
-    x, y, model, initial_p=None, norm=False, threshold=None, xshift=None, bounds=None
-):
+def fitPixel(x, y, model, initial_p=None, norm=False, threshold=0.01, xshift=None, bounds=None):
+    """Fit a given pixel from the fitCube by using a custom model
+
+    Parameters
+    ----------
+    x : float
+        Array with time values
+    y : float
+        Array with decay values
+    model : callable
+        function to be used defined in flim.models
+    initial_p : array_like
+        Initial guess for the fitting function (default is None, used ones)
+    norm : bool
+        If True, it normalizes the data to its maximum (default is True)
+    threshold : float
+        If True, only data above threshold is considered for the fitting (default is 0.01)
+    xshift : float
+        Shifts the time axis by `xshift` to fixed the initial decay timestep (default is None)
+        If None, data is shifted to start at maximum point at t=0
+    bounds : 2-tuple of array_like
+        Lower and upper bounds on parameters. Defaults to no bounds.
+
+    Returns
+    -------
+    xf : ndarray
+        Time array used in the fitting (after cleaning). Usually smaller than x
+    yf : float
+        Cleaned y-axis data used in the fitting. Different from input y
+    pfit : 1d ndarray
+        Fitted model parameters
+    pcov : 2d ndarray
+        Covariance matrix from the fitted Parameters.
+    chi2 : float
+        Chi square result from the fitting
+    """
     if bounds is None:
         bounds = (-np.inf, np.inf)
     xf, yf, yf_max, xf_shift = cleanCurve(
@@ -86,9 +195,32 @@ def fitPixel(
     return xf, yf, pfit, pcov, chi2
 
 
-def fitCube(
-    FCube, model, guessp=None, bounds=None, norm=False, threshold=None, xshift=None
-):
+def fitCube(FCube, model, guessp=None, bounds=None, norm=False, threshold=None, xshift=None):
+    """Apply fitPixel to every pixel in a flimCube
+
+    Parameters
+    ----------
+    FCube : flim.flimCube object
+        Instance of a flimCube
+    model : callable
+        function to be used defined in flim.models
+    guessp : array_like
+        Initial guess for the fitting function (default is None, used ones)
+    norm : bool
+        If True, it normalizes the data to its maximum (default is True)
+    threshold : float
+        If True, only data above threshold is considered for the fitting (default is 0.01)
+    xshift : float
+        Shifts the time axis by `xshift` to fixed the initial decay timestep (default is None)
+        If None, data is shifted to start at maximum point at t=0
+    bounds : 2-tuple of array_like
+        Lower and upper bounds on parameters. Defaults to no bounds.
+
+    Returns
+    -------
+    FFit : flim.fitFit Object
+        A fitFit object with all of the parameters results for each pixel
+    """
     PP = np.zeros((FCube.xpix, FCube.ypix, 2, len(guessp) + 2)) - 1
     failed = np.zeros((FCube.xpix, FCube.ypix))
     for i in tqdm(range(FCube.xpix)):
@@ -120,7 +252,24 @@ def fitCube(
     return FFit
 
 
-def getKernel(bin=1, kernel="flat", sigma=None):
+def getKernel(bin=4, kernel="flat", sigma=None):
+    """Get a kernel used to bin the data
+
+    Parameters
+    ----------
+    bin : int
+        Size of the binning window around a given pixel, square with 2 * bin + 1 side
+        (default 4)
+    kernel : str
+        Kernel to be used among `flat`, `linear`, `gauss` and `airy`. (default to `flat`)
+    sigma : float
+        Sigma for the gaussian kernel or for the Airy disk. (default is None, (bin+1)/3)
+
+    Returns
+    -------
+    _kernel : 2D ndarray
+        Kernel to be used for binning and filtering
+    """
     N = 2 * bin + 1
     if kernel == "linear":
         prob = list(np.arange(bin + 1) + 1)
@@ -163,6 +312,28 @@ def getKernel(bin=1, kernel="flat", sigma=None):
 
 
 def binCube(FCube, channel=None, bin=1, kernel="flat", sigma=None):
+    """Apply a binning kernel to a flimCube instance and returns another flimCube instance with
+    with the binned data
+
+    Parameters
+    ----------
+    FCube: flim.flimCube
+        An instance of a flimCube
+    channel: int
+        Apply binning to just one channel instead of every timestep.
+    bin : int
+        Size of the binning window around a given pixel, square with 2 * bin + 1 side
+        (default 4)
+    kernel : str
+        Kernel to be used among `flat`, `linear`, `gauss` and `airy`. (default to `flat`)
+    sigma : float
+        Sigma for the gaussian kernel or for the Airy disk. (default is None, (bin+1)/3)
+
+    Returns
+    -------
+    FlimCube : flim.flimCube
+        Retuns an instance of a flimCube with the binned data.
+    """
     if channel is None:
         idx = np.arange(FCube.data.shape[2])
         outarray = np.empty((FCube.data.shape))
@@ -211,7 +382,62 @@ class FlimFit(object):
 
 
 class FlimCube(object):
+    """
+    A class to represent 3d data, masking and binned data
+
+    Attributes
+    ----------
+    xpix : int
+        Xsize
+    ypix : int
+        Ysize
+    timestep : int
+        Size of the time dimension
+    tresolution : float
+        Resolution of the time axis in nano seconds
+    data : 3d ndarray
+        The actual data cube
+    header : dict
+        Header with information from reading the file and metadata
+    binned : bool
+        Whether this cube is binned or not
+    masked : bool
+        Whether the data is masked or not
+    mask : array_like
+        The 2d masking array
+    intensity : 2d ndarray
+        Integrated counts of the cube summed along the time axis
+    peak : 2d ndarray
+        Map of the peak for each pixel
+    t : 1d ndarray
+        Time steps
+
+    Methods
+    -------
+    show_header()
+        Display information about the file
+    mask_intensity(minval, mask=None)
+        Mask the data by intensity values or a passed mask
+    mask_peak(minval, mask=None)
+        Mask the data by the peak values or a passed mask
+    unmask()
+        Remove any applied mask
+    """
     def __init__(self, data, header, binned=False, masked=False):
+        """
+        Creates a flimCube instance.
+
+        Parameters
+        ----------
+        data : 3d ndarray
+            Data cube comming from io methods
+        header : dict
+            Header with information about the file and metadata
+        binned : bool
+            Whether the input data is binnned
+        masked : bool
+            Whether the input data is masked
+        """
         self.xpix = header["flimview"]["xpix"]
         self.ypix = header["flimview"]["ypix"]
         self.timesteps = header["flimview"]["tpix"]
@@ -226,7 +452,9 @@ class FlimCube(object):
         self.t = np.arange(self.timesteps) * self.tresolution / 1000.0
 
     def show_header(self):
-        """Display information about the file"""
+        """
+        Display information about the file
+        """
         for k, v in self.header.items():
             if k == "flimview":
                 print("---------------------")
@@ -247,6 +475,16 @@ class FlimCube(object):
                 print("{}: {}".format(k, v))
 
     def mask_intensity(self, minval, mask=None):
+        """
+        Mask the data by intensity values or a passed mask, it recomputes the intensity, the peak
+
+        Parameters
+        ----------
+        minval : float
+            Min value for the intensity to be masked
+        mask : 2d bool ndarray
+            If this is passed it overrides the minval (default is None)
+        """
         self.unmask()
         if mask is None:
             self.intensity = np.ma.masked_where(self.intensity < minval, self.intensity)
@@ -257,6 +495,16 @@ class FlimCube(object):
         self.peak = np.ma.masked_array(self.peak, mask=self.mask)
 
     def mask_peak(self, minval, mask=None):
+        """
+        Mask the data by the values or a passed mask, it recomputes the intensity, the peak
+
+        Parameters
+        ----------
+        minval : float
+            Min value for the peak to be masked
+        mask : 2d bool ndarray
+            If this is passed it overrides the minval (default is None)
+        """
         self.unmask()
         if mask is None:
             self.peak = np.ma.masked_where(self.peak < minval, self.peak)
@@ -267,151 +515,10 @@ class FlimCube(object):
         self.intensity = np.ma.masked_array(self.intensity, mask=self.mask)
 
     def unmask(self):
+        """
+        Remove any applied mask and recomputes the peak and the intensity
+        """
         self.intensity = np.sum(self.data, axis=2) * 1.0
         self.peak = np.max(self.data, axis=2) * 1.0
         self.masked = False
         self.mask = None
-
-
-class FLIM1(object):
-    def __init__(self, tiffile, sdtfile):
-        self.tiffile = tiffile
-        self.sdtfile = sdtfile
-        self.tif = Image.open(self.tiffile)
-        self.sdt = sdt.SdtFile(self.sdtfile)
-        self.timesteps = 256
-        self.xpix = 256
-        self.ypix = 256
-
-
-
-    def extract2D(self, channel=0, t=0, summed=False):
-        """Extract a 2D snapshot for a given channel for a given timestep, it can also returned a integrated
-        across channels
-
-        Parameters
-        ----------
-        channel: int (default is 0)
-            Channel used during sampling, only 0 is used
-        t: int (default is 0)
-            Time step (out of 256)
-        summed: bool (default is False)
-            Whether return or not integrated count across all channels
-
-        Returns
-        -------
-        ndarray
-            2D array containing data with `int` type with photon count for a
-            single timestamp
-
-        """
-        if summed:
-            vector = np.sum(self.sdt.data, axis=0)[:, t]
-        else:
-            vector = self.sdt.data[channel][:, t]
-        return np.reshape(vector, (self.xpix, self.ypix))
-
-    def extractI(self, channel=0, summed=False):
-        """Returns Intensity (integrated across time) of the photon count for a given channel
-
-        Parameters
-        ----------
-        channel: int (default is 0)
-            Channel used during sampling, only 0 is used
-        summed: bool (default is False)
-            Whether return or not integrated count across all channels
-
-        Returns
-        -------
-        ndarray
-            2D array containing data with `int` type with photon count integrated across
-            timesteps (and channels if enabled)
-
-        """
-        self.I = np.zeros((self.xpix, self.ypix))
-        for i in range(self.timesteps):
-            self.I += self.extract2D(channel=channel, t=i, summed=summed)
-
-    def show_I(self, savefig=None):
-        """Display Intensity image"""
-        plt.figure(figsize=(8, 8))
-        ax = plt.gca()
-        if not hasattr(self, "I"):
-            self.extractI()
-        ims = ax.imshow(self.I, cmap=cm.inferno)
-        ax.set_title(self.sdt.name)
-        divider = make_axes_locatable(ax)
-        cax = divider.append_axes("right", size="5%", pad=0.05)
-        plt.colorbar(ims, cax=cax)
-        if savefig is not None:
-            plt.savefig(savefig)
-        plt.show()
-
-    def extractBin(self, channel=0, t=0, bin=1, kernel="mean", sigma=1.0, summed=False):
-        """Extracts a `binned` image for a given channel for a given timestep with a given kernel
-
-        Parameters
-        ----------
-        channel: int (default is 0)
-            Channel
-        t: int
-            Timestep (default is  0 out of 256)
-        bin: int (default is 1)
-            size of array to use centered on pixel, 0 = do nothing, 1 = use a 3x3 array,
-            2 = use a 5x5 array, i.e, use a 2 * bin + 1 squared array
-        kernel: str (default is mean)
-             What kernel used to do the convolution,
-             `mean` : simple mean across neighbor pixels
-             `gauss`: gaussian kernel
-        sigma: float (default is 1.0)
-            Sigma used for the gaussian kernel
-        summed: bool (default is False)
-            Results integrated across channels
-
-        Returns
-        -------
-        ndarray
-            2D array (256 x 256) containing data with `float` type with photon count convoled with a kernel
-
-        """
-        imgarray = self.extract2D(channel, t, summed=summed)
-        N = 2 * bin + 1
-        if kernel == "mean":
-            _kernel = np.ones((N, N)) / (N ** 2)
-        if kernel == "gauss":
-            s = sigma
-            k = bin
-            probs = [
-                np.exp(-z * z / (2 * s * s)) / np.sqrt(2 * np.pi * s * s)
-                for z in range(-k, k + 1)
-            ]
-            _kernel = np.outer(probs, probs)
-            _kernel /= np.sum(_kernel)
-        return signal.convolve2d(imgarray, _kernel, mode="same")
-
-   
-
-    def plot_mean_decay(self, channel=0):
-        if not hasattr(self, "mean_decay"):
-            _ = self.extractMeanDecay(channel)
-        plt.figure(figsize=(6, 6))
-        plt.plot(self.sdt.times[channel] / 1e-9, self.mean_decay)
-        plt.xlabel("time [ns]", fontsize=15)
-        plt.ylabel("Mean photon count", fontsize=15)
-        plt.show()
-
-    @staticmethod
-    def fit_data(x, y, initial_p=[1.0, 1.0, 1.0, 1.0], norm=False, threshold=None):
-        imax = np.argmax(y)
-        dt = x[1] - x[0]
-        # xf = x[imax:]
-        yf = y[imax:]
-        xf = np.arange(len(yf)) * dt
-        if threshold is not None:
-            wabove = np.where(yf > threshold)[0]
-            xf = xf[wabove]
-            yf = yf[wabove]
-        if norm:
-            yf = yf / np.max(yf)
-        pfit, pcov = curve_fit(model, xf, yf, initial_p)
-        return xf, yf, pfit, pcov
