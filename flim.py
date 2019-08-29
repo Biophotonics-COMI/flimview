@@ -1,15 +1,10 @@
 import numpy as np
-import sdtfile as sdt
 from scipy import signal
 from scipy.optimize import curve_fit
 from scipy.stats import chisquare
 import scipy.special
 from tqdm import tqdm
-import matplotlib.pyplot as plt
-import os
-from matplotlib import cm
 import inspect
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
 def getModelVars(function):
