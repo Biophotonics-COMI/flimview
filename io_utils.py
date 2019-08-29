@@ -12,6 +12,25 @@ from . import models
 
 
 def read_sdt_file(sdtfile, channel=0, xpix=256, ypix=256, tpix=256):
+    """
+    Reads a sdtfile and returns the header and a data cube.
+
+    Parameters
+    ----------
+    sdtfile : str
+        Path to SdtFile
+    channel : int
+    xpix : int
+    ypix : int
+    tpix : int
+
+    Returns
+    -------
+    3d ndarray
+        Read dataset with shape (xpix, ypix, tpix)
+    dict
+        Header information
+    """
     sdt = SdtFile(sdtfile)
     if np.shape(sdt.data)[0] == 0:
         print("There is an error with this file: {}".format(sdtfile))
@@ -41,7 +60,7 @@ def read_ptu_header(infile):
 
     Parameters
     ----------
-    infile: `str`
+    infile : str
         Filepath to ptu file
 
     Returns
@@ -136,11 +155,34 @@ def read_ptu_header(infile):
     return header
 
 
-def read_ptu_records(params):
-    infile = params[0]
-    header = params[1]
-    skip_records = params[2]
-    read_records = params[3]
+def read_ptu_records(infile, header, skip_records=0, read_records=None):
+    """
+    Reads the records from a binary blob and returns structured data
+
+    Parameters
+    ----------
+    infile : str
+        Filepath to ptu file
+    header : dict
+        Header of the ptu file
+    skip_records : int
+        Number fo records to skip (default is 0)
+    read_records : int
+        Number of records to read (default is None which reads total number from header)
+
+    Returns
+    -------
+    sync : 1d ndarray uint64
+        Sync values
+    tcspc : 1d ndarray uint16
+        Time values
+    channel : 1d ndarray uint8
+        Channel values
+    special : 1d ndarray uint8
+        Marker values
+    index : 1d ndarray uint8
+        Overflow index values
+    """
     if read_records is None:
         read_records = header["TTResult_NumberOfRecords"]
     inputfile = open(infile, "rb")
@@ -171,6 +213,45 @@ def read_ptu_records(params):
 
 
 def clean_ptu_oflow(header, sync, tcspc, channel, special, index, wrap=1024):
+    """
+    Cleans and reformat ptu records by Overflow
+
+    Parameters
+    ----------
+    header : dict
+        Header of the ptu inputfile
+    sync : 1d ndarray uint64
+        Sync values
+    tcspc : 1d ndarray uint16
+        Time values
+    channel : 1d ndarray uint8
+        Channel values
+    special : 1d ndarray uint8
+        Marker values
+    index : 1d ndarray uint8
+        Overflow index values
+    wrap : int
+    Overflow wrapping bytes (default 1024)
+
+    Returns
+    -------
+    header : dict
+        Updated header of the ptu inputfile
+    sync : 1d ndarray uint64
+        Cleaned sync values
+    tcspc : 1d ndarray uint16
+        Cleaned time values
+    channel : 1d ndarray uint8
+        Cleaned channel values
+    special : 1d ndarray uint8
+        Clean marker values
+    line_start : 1d ndarray
+        Array with index for the starting of the new line for the image
+    line_stop : 1d ndarray
+        Array with index for the starting of the end line for the image
+    start_frames : 1d ndarray
+        Array with the index of the starting point for a new frame
+    """
     oflow = np.where(index == 1)
     sync = sync + (wrap * np.cumsum(index * sync))
     sync = np.delete(sync, oflow, axis=0)
@@ -212,6 +293,14 @@ def read_ptu_frame(
     frames_per_view=20,
     res_factor=1,
 ):
+    """
+    Reads one or more frames from the given input and aggregates them to create
+    a final 3d cube
+
+    Parameters
+    ----------
+    
+    """
     out = []
     xpix = header["flimview"]["ypix"]
     ypix = header["flimview"]["xpix"]
@@ -260,11 +349,11 @@ def read_ptu_frame(
         i += 1  # next entry
         if sp == 4:  # next frame
             currentLine = 0
-            print("frame {}, view {} done".format(frame+frame_shift, view))
+            #print("frame {}, view {} done".format(frame + frame_shift, view))
             frame += 1
         if frame == nframes:
             break
-    return im1[1:,][:][:], headerf  # remove extra column
+    return im1[1:, ][:][:], headerf  # remove extra column
 
 
 def saveCube(FCube, filename=None, group=None, subgroup=None):
@@ -456,9 +545,17 @@ def loadFit(filename, group=None, subgroup=None):
     return F
 
 
-def descend_obj(obj,sep='----'):
+def descend_obj(obj, sep='----'):
     """
-    Iterate through groups in a HDF5 file and prints the groups and datasets names and datasets attributes
+    Iterate through groups in a HDF5 file and prints the groups and
+    datasets names and datasets attributes
+
+    Parameters
+    ----------
+    obj :
+        Current group or dataset
+    sep : str
+        Tab-like string to separate entries
     """
     if type(obj) in [h5py.Group,h5py.File]:
         for key in obj.keys():
@@ -471,12 +568,16 @@ def descend_obj(obj,sep='----'):
         for key in obj.attrs.keys():
             print('{}----+{}: {}'.format(sep, key, obj.attrs[key]))
 
-def viewH5(path,group='/'):
-    """
-    print HDF5 file metadata
 
-    group: specific group, defaults to the root group
+def viewH5(path, group='/'):
+    """
+    print HDF5 file metadata structure
+
+    Parameters
+    ----------
+    group : str
+        Specific group, defaults to the root group
     """
     print('File: {}'.format(path))
-    with h5py.File(path,'r') as f:
-         descend_obj(f[group])
+    with h5py.File(path, 'r') as f:
+        descend_obj(f[group])
