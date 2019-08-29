@@ -310,7 +310,10 @@ def read_ptu_frame(
     headerf["flimview"]["tpix"] = tpix
     headerf["flimview"]["tresolution"] = tresolution
     im1 = np.zeros((xpix + 1, ypix, tpix))
-    i = start_frames[view * frames_per_view + frame_shift] + 1
+    try:
+        i = start_frames[view * frames_per_view + frame_shift] + 1
+    except:
+        return im1[1:, ][:][:], headerf  # remove extra column
     line = (view * frames_per_view + frame_shift) * (xpix + 1)
     frame = 0
     currentLine = 0
