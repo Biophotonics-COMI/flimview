@@ -299,7 +299,11 @@ def read_ptu_frame(
 
     Parameters
     ----------
-    
+
+    Returns
+    -------
+
+
     """
     out = []
     xpix = header["flimview"]["ypix"]
