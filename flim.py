@@ -433,10 +433,10 @@ class FlimCube(object):
         masked : bool
             Whether the input data is masked
         """
-        self.xpix = header["flimview"]["xpix"]
-        self.ypix = header["flimview"]["ypix"]
-        self.timesteps = header["flimview"]["tpix"]
-        self.tresolution = header["flimview"]["tresolution"]
+        self.xpix = int(header["flimview"]["xpix"])
+        self.ypix = int(header["flimview"]["ypix"])
+        self.timesteps = int(header["flimview"]["tpix"])
+        self.tresolution = float(header["flimview"]["tresolution"])
         self.data = data
         self.header = header
         self.binned = binned
