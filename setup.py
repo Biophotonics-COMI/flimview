@@ -25,5 +25,5 @@ setup(
     description='Python ligtweight flim image processing',
     long_description=read('README.md'),
     url='https://github.com/sahandha/eif',
-    install_requires=["numpy","scipy", "pandas", "matplotlib", "sdtfile","json", "h5py" ],
+    install_requires=["numpy","scipy", "pandas", "matplotlib", "sdtfile", "h5py", "tqdm"],
 )
