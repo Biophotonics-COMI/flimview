@@ -299,11 +299,43 @@ def read_ptu_frame(
 
     Parameters
     ----------
+    header : dict
+        Updated header of the ptu inputfile
+    sync : 1d ndarray uint64
+        Cleaned sync values
+    tcspc : 1d ndarray uint16
+        Cleaned time values
+    channel : 1d ndarray uint8
+        Cleaned channel values
+    special : 1d ndarray uint8
+        Clean marker values
+    start_frames : 1d ndarray
+        Array with the index of the starting point for a new frame
+    line_start : 1d ndarray
+        Array with index for the starting of the new line for the image
+    line_stop : 1d ndarray
+        Array with index for the starting of the end line for the image
+    view : int
+        Which view to process, usually 4 (default is 0)
+    nframes : int
+        How many frames to read at the same time, frames read are aggregated (default is 1)
+    frame_shift : int
+        How many frames to shift in a given view, this is useful when reading in parallel
+        (default is 0)
+    frames_per_view : int
+        How many frames are expected in a view (default is 20)
+    res_factor : int
+        Resolution factor to apply in the time axis, if 1 no time binning is applied and the
+        original time axis is returned. If 2 or more timesteps are divided by such factor.
+        (default is 1)
 
     Returns
     -------
-
-
+    3d ndarray
+        The data cube for the frames read for the given view and time resolution, if many frames
+        are read individually, these need to be aggregated
+    dict
+        Updated header with general information and metadata added
     """
     out = []
     xpix = header["flimview"]["ypix"]
@@ -364,6 +396,24 @@ def read_ptu_frame(
 
 
 def saveCube(FCube, filename=None, group=None, subgroup=None):
+    """
+    Saves the instance of a flimCube into a HDF5 format, it grabs the name from the header and it
+    support root group and subgroup
+
+    Parameters
+    ----------
+    FCube : A instance of a flim.FlimCube
+        The flimCube to be stored
+    filename : str
+        HDF5 filename where the flimCube is saved (default is None and filename is grabed from the
+        header)
+    group : str
+        Root group inside the HDF5 if provided, this is useful to store multiple views in the same
+        file (default is None)
+    subgroup : str
+        Subgroup provided which help to separate multiple flimCube within a group, useful when use
+        to save raw and binned data
+    """
     file_name, file_extension = os.path.splitext(FCube.header["flimview"]["filename"])
     if filename is None:
         h5file = os.path.join(
@@ -421,6 +471,27 @@ def saveCube(FCube, filename=None, group=None, subgroup=None):
 
 
 def loadCube(filename, kind, group=None, subgroup=None):
+    """
+    Loads a flimCube from a HDF5 filename
+
+    Parameters
+    ----------
+    filename : str
+        HDF5 filename where the flimCube is saved
+    kind : str
+        Kind of data to read, `raw`,  or `binned`
+    group : str
+        Root group inside the HDF5 if provided, this is useful to store multiple views in the same
+        file (default is None)
+    subgroup : str
+        Subgroup provided which help to separate multiple flimCube within a group, useful when use
+        to save raw and binned data
+
+    Returns
+    -------
+    flimCube
+        Returns a instance of a flimCube with the read data
+    """
     f = h5py.File(filename, "r")
     file_name, file_extension = os.path.splitext(os.path.basename(filename))
     if group is None:
@@ -445,6 +516,23 @@ def loadCube(filename, kind, group=None, subgroup=None):
 
 
 def saveFit(FFit, filename=None, group=None, subgroup=None):
+    """
+    Saves a flimFit instance inside a HDF5 file, which might contain other datasets
+
+    Parameters
+    ----------
+    FFit : flimFit instance
+        An instance of a flimFit with the fitted results
+    filename : str
+        HDF5 filename where the flimCube is saved (default is None and filename is grabed from the
+        header)
+    group : str
+        Root group inside the HDF5 if provided, this is useful to store multiple views in the same
+        file (default is None)
+    subgroup : str
+        Subgroup provided which help to separate multiple flimCube within a group, useful when use
+        to save raw and binned data
+    """
     file_name, file_extension = os.path.splitext(
         FFit.Fcube.header["flimview"]["filename"]
     )
@@ -524,6 +612,25 @@ def saveFit(FFit, filename=None, group=None, subgroup=None):
 
 
 def loadFit(filename, group=None, subgroup=None):
+    """
+    Loads a flimFit from a HDF5 filename
+
+    Parameters
+    ----------
+    filename : str
+        HDF5 filename where the flimCube is saved
+    group : str
+        Root group inside the HDF5 if provided, this is useful to store multiple views in the same
+        file (default is None)
+    subgroup : str
+        Subgroup provided which help to separate multiple flimCube within a group, useful when use
+        to save raw and binned data
+
+    Returns
+    -------
+    flimFit
+        Returns a instance of a flimFit with the read data
+    """
     file_name, file_extension = os.path.splitext(os.path.basename(filename))
     if group is None:
         grp = file_name
