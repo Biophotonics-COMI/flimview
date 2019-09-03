@@ -22,6 +22,11 @@ and finally to install flimview from github
 
     pip install git+https://github.com/mgckind/flimview.git --upgrade
 
+#### Optional Packages
+
+To run few things in parallel and other analysis you can install a few more packages
+
+    pip install scikit-image dask[complete] dask-jobqueue
 
 
 ### Examples
