@@ -35,4 +35,12 @@ Check the notebooks examples [here](notebooks/)
 
 ### Development
 
+To contribute to this package, first clone it:
+
+    git clone https://github.com/mgckind/flimview.git
+
+Then inside flimview
+
     pip install -e .
+
+
