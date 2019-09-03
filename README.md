@@ -26,7 +26,7 @@ and finally to install flimview from github
 
 To run few things in parallel and other analysis you can install a few more packages
 
-    pip install scikit-image dask[complete] dask-jobqueue
+    pip install scikit-image dask[complete] dask-jobqueue --upgrade
 
 
 ### Examples
