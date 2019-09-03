@@ -1,5 +1,8 @@
 ### flimview
 
+#### Examples
+
+Check the notebooks examples [here](notebooks/)
 
 #### Development
 
