@@ -6,3 +6,4 @@ pandas
 json
 tqdm
 h5py
+Pillow
