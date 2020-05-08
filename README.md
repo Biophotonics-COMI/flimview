@@ -1,5 +1,7 @@
 ## flimview
 
+![fig](figures/viz_sdt.png)
+
 ### Conda Installation
 
 First create a python 3 conda environment
