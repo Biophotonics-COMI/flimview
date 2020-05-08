@@ -57,6 +57,10 @@ def read_sdt_file(sdtfile, channel=0, xpix=256, ypix=256, tpix=256):
 def read_ptu_header(infile):
     """ Read header from a ptu file and returns a dictionary with all
     the information
+    Largely inspired from PicoQuant examples:
+    https://github.com/PicoQuant/PicoQuant-Time-Tagged-File-Format-Demos
+    https://gist.github.com/tritemio/734347586bc999f39f9ffe0ac5ba0e66
+
 
     Parameters
     ----------
