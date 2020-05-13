@@ -22,7 +22,7 @@ To enable the widgets
 
 and finally to install flimview from github
 
-    pip install git+https://github.com/mgckind/flimview.git --upgrade
+    pip install git+https://github.com/Biophotonics-COMI/flimview.git --upgrade
 
 #### Optional Packages
 
@@ -48,7 +48,7 @@ Check the notebooks examples [here](notebooks/)
 
 To contribute to this package, first clone it:
 
-    git clone https://github.com/mgckind/flimview.git
+    git clone https://github.com/Biophotonics-COMI/flimview.git
 
 Then inside flimview
 

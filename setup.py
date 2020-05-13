@@ -1,13 +1,12 @@
+import pathlib
 import sys
 import os
 try:
     from setuptools import setup, find_packages
 except ImportError:
     from distutils.core import setup
-prjdir = os.path.dirname(__file__)
-
-def read(filename):
-    return open(os.path.join(prjdir, filename)).read()
+HERE = pathlib.Path(__file__).parent
+README = (HERE / "README.md").read_text()
 
 extra_link_args = []
 libraries = []
@@ -17,13 +16,25 @@ exec(open('flimview/version.py').read())
 setup(
     name='flimview',
     version=__version__,
-    author='Matias Carrasco Kind , COMI Lab',
+    description='A software framework to handle, visualize and analyze FLIM data',
+    long_description=README,
+    author='Matias Carrasco Kind & COMI Lab',
     author_email='mcarras2@illinois.edu',
     scripts=[],
     packages=['flimview'],
     license='License.txt',
-    description='Python ligtweight flim image processing',
     long_description=read('README.md'),
-    url='https://github.com/sahandha/eif',
-    install_requires=["numpy","scipy", "pandas", "matplotlib", "sdtfile", "h5py", "tqdm", "Pillow"],
+    url='https://github.com/Biophotonics-COMI/flimview',
+    install_requires=[
+        "scipy",
+        "numpy",
+        "matplotlib",
+        "sdtfile",
+        "pandas",
+        "json",
+        "tqdm",
+        "h5py",
+        "Pillow",
+        "pooch"
+    ],
 )
