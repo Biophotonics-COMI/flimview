@@ -2,7 +2,12 @@
 
 ![fig](figures/viz_sdt.png)
 
-### Conda Installation
+
+### pip installation
+
+    pip install flimview
+
+### Conda Installation for Jupyter environment
 
 First create a python 3 conda environment
 
@@ -22,7 +27,7 @@ To enable the widgets
 
 and finally to install flimview from github
 
-    pip install git+https://github.com/Biophotonics-COMI/flimview.git --upgrade
+    pip install flimview --upgrade
 
 #### Optional Packages
 
