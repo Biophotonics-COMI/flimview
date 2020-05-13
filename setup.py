@@ -23,7 +23,6 @@ setup(
     scripts=[],
     packages=['flimview'],
     license='License.txt',
-    long_description=read('README.md'),
     url='https://github.com/Biophotonics-COMI/flimview',
     install_requires=[
         "scipy",
