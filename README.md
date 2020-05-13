@@ -1,5 +1,5 @@
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.3825694.svg)](https://doi.org/10.5281/zenodo.3825694)[![PyPI version](https://badge.fury.io/py/flimview.svg)](https://badge.fury.io/py/flimview)
 ## flimview
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.3825694.svg)](https://doi.org/10.5281/zenodo.3825694)[![PyPI version](https://badge.fury.io/py/flimview.svg)](https://badge.fury.io/py/flimview)
 
 ![fig](figures/viz_sdt.png)
 
